@@ -3,7 +3,7 @@
   <!--default parameter follows node setting -->
   <arg name="input/obstacle_pointcloud" default="concatenated/pointcloud"/>
   <arg name="input/raw_pointcloud" default="no_ground/oneshot/pointcloud"/>
-  <arg name="output" default="/perception/occupancy_grid_map/map_before_rotation"/>
+  <arg name="output" default="/perception/occupancy_grid_map/map"/>
   <arg name="use_intra_process" default="false"/>
   <arg name="use_multithread" default="false"/>
   <arg name="use_pointcloud_container" default="false"/>
