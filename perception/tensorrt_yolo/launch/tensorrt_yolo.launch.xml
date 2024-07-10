@@ -19,6 +19,7 @@
     <param name="calib_cache_file" type="str" value="$(var data_path)/tensorrt_yolo/$(var yolo_type).cache"/>
     <param name="mode" type="str" value="$(var mode)"/>
     <param name="gpu_id" type="int" value="$(var gpu_id)"/>
+    <param name="score_thresh" type="float" value="0.1"/>
     <param from="$(find-pkg-share tensorrt_yolo)/config/$(var yolo_type).param.yaml"/>
   </node>
 </launch>
