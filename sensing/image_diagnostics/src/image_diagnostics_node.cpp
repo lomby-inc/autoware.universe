@@ -251,9 +251,9 @@ void ImageDiagNode::ImageChecker(const sensor_msgs::msg::Image::ConstSharedPtr i
   dft_image_msg->header = input_image_msg->header;
   block_diag_image_msg->header = input_image_msg->header;
 
-  gray_image_pub_.publish(gray_image_msg);
-  dft_image_pub_.publish(dft_image_msg);
-  block_diag_image_pub_.publish(block_diag_image_msg);
+  // gray_image_pub_.publish(gray_image_msg);
+  // dft_image_pub_.publish(dft_image_msg);
+  // block_diag_image_pub_.publish(block_diag_image_msg);
 }
 
 void ImageDiagNode::shiftImage(cv::Mat & img)
