@@ -16,6 +16,7 @@
 #define IMAGE_PROJECTION_BASED_FUSION__ROI_POINTCLOUD_FUSION__NODE_HPP_
 
 #include "image_projection_based_fusion/fusion_node.hpp"
+#include "tier4_debug_msgs/msg/int32_stamped.hpp"
 
 #include <string>
 #include <vector>
@@ -28,10 +29,12 @@ private:
   int min_cluster_size_{1};
   bool fuse_unknown_only_{true};
   double cluster_2d_tolerance_;
+  bool image_status_ok_{true};
 
   rclcpp::Publisher<DetectedObjectsWithFeature>::SharedPtr pub_objects_ptr_;
   std::vector<DetectedObjectWithFeature> output_fused_objects_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cluster_debug_pub_;
+  rclcpp::Subscriber<tier4_debug_msgs::msg::Int32Stamped>::SharedPtr image_status_sub_;
 
   /* data */
 public:
@@ -47,6 +50,7 @@ protected:
     const DetectedObjectsWithFeature & input_roi_msg,
     const sensor_msgs::msg::CameraInfo & camera_info, PointCloud2 & output_pointcloud_msg) override;
   bool out_of_scope(const DetectedObjectWithFeature & obj);
+  void imageStatusCallback(const tier4_debug_msgs::msg::Int32Stamped & msg);
 };
 
 }  // namespace image_projection_based_fusion

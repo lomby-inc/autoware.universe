@@ -38,6 +38,8 @@ RoiPointCloudFusionNode::RoiPointCloudFusionNode(const rclcpp::NodeOptions & opt
   pub_objects_ptr_ =
     this->create_publisher<DetectedObjectsWithFeature>("output_clusters", rclcpp::QoS{1});
   cluster_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("debug/clusters", 1);
+  image_status_sub_ = this->create_subscription<tier4_debug_msgs::msg::Int32Stamped>(
+    "/sensing/image_diag/image_state_diag", 5, std::bind(&RoiPointCloudFusionNode::imageStatusCallback, this, std::placeholders::_1));
 }
 
 void RoiPointCloudFusionNode::preprocess(__attribute__((unused))
@@ -77,6 +79,22 @@ void RoiPointCloudFusionNode::fuseOnSingleImage(
   const sensor_msgs::msg::CameraInfo & camera_info,
   __attribute__((unused)) sensor_msgs::msg::PointCloud2 & output_pointcloud_msg)
 {
+  // Check if the image is usable
+  if (!image_status_ok_){
+  // If the image status is bad, publish the pointcloud with unknown classification and return
+    DetectedObjectsWithFeature output_msg;
+    output_msg.header = input_pointcloud_msg.header;
+    for (const auto & point : input_pointcloud_msg.data) {
+      DetectedObjectWithFeature unknown_obj;
+      unknown_obj.object.classification.front().label =
+        autoware_auto_perception_msgs::msg::ObjectClassification::UNKNOWN;
+      // Add additional information as needed
+      output_msg.feature_objects.push_back(unknown_obj);
+    }
+    pub_objects_ptr_->publish(output_msg);
+    return;
+  }
+
   if (input_pointcloud_msg.data.empty()) {
     return;
   }
@@ -159,6 +177,12 @@ bool RoiPointCloudFusionNode::out_of_scope(__attribute__((unused))
 {
   return false;
 }
+
+void RoiPointCloudFusionNode::imageStatusCallback(const tier4_debug_msgs::msg::Int32Stamped & msg)
+{
+  image_status_ok_ = msg->data;
+}
+
 }  // namespace image_projection_based_fusion
 
 #include <rclcpp_components/register_node_macro.hpp>
