@@ -39,7 +39,7 @@ RoiPointCloudFusionNode::RoiPointCloudFusionNode(const rclcpp::NodeOptions & opt
     this->create_publisher<DetectedObjectsWithFeature>("output_clusters", rclcpp::QoS{1});
   cluster_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("debug/clusters", 1);
   image_status_sub_ = this->create_subscription<tier4_debug_msgs::msg::Int32Stamped>(
-    "/sensing/image_diag/image_state_diag", 5, std::bind(&RoiPointCloudFusionNode::imageStatusCallback, this, std::placeholders::_1));
+    "/sensing/image_diag/image_state_diag", rclcpp::QoS(5).best_effort().durability_volatile(), std::bind(&RoiPointCloudFusionNode::imageStatusCallback, this, std::placeholders::_1));
 }
 
 void RoiPointCloudFusionNode::preprocess(__attribute__((unused))
@@ -80,11 +80,11 @@ void RoiPointCloudFusionNode::fuseOnSingleImage(
   __attribute__((unused)) sensor_msgs::msg::PointCloud2 & output_pointcloud_msg)
 {
   // Check if the image is usable
-  if (!image_status_ok_){
-  // If the image status is bad, publish the pointcloud with unknown classification and return
+  if (!image_status_ok_) {
+    // Image is not usable, publish point cloud with unknown classification
     DetectedObjectsWithFeature output_msg;
     output_msg.header = input_pointcloud_msg.header;
-    for (const auto & point : input_pointcloud_msg.data) {
+    for (size_t i = 0; i < input_pointcloud_msg.width * input_pointcloud_msg.height; ++i) {
       DetectedObjectWithFeature unknown_obj;
       unknown_obj.object.classification.front().label =
         autoware_auto_perception_msgs::msg::ObjectClassification::UNKNOWN;
@@ -180,7 +180,16 @@ bool RoiPointCloudFusionNode::out_of_scope(__attribute__((unused))
 
 void RoiPointCloudFusionNode::imageStatusCallback(const tier4_debug_msgs::msg::Int32Stamped & msg)
 {
-  image_status_ok_ = msg->data;
+  if (msg.data == 0)
+  {
+    image_status_ok_ = true;
+    RCLCPP_INFO(this->get_logger(), "Image status changed to OK.");
+  }
+  else if (msg.data == 2 || msg.data == 1)
+  {
+    image_status_ok_ = false;
+    RCLCPP_WARN(this->get_logger(), "Image status changed to BAD.");
+  }
 }
 
 }  // namespace image_projection_based_fusion
