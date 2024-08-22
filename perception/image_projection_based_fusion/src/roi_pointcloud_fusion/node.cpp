@@ -79,97 +79,115 @@ void RoiPointCloudFusionNode::fuseOnSingleImage(
   const sensor_msgs::msg::CameraInfo & camera_info,
   __attribute__((unused)) sensor_msgs::msg::PointCloud2 & output_pointcloud_msg)
 {
-  // Check if the image is usable
-  if (!image_status_ok_) {
-    // Image is not usable, publish point cloud with unknown classification
-    DetectedObjectsWithFeature output_msg;
-    output_msg.header = input_pointcloud_msg.header;
-    for (size_t i = 0; i < input_pointcloud_msg.width * input_pointcloud_msg.height; ++i) {
-      DetectedObjectWithFeature unknown_obj;
-      unknown_obj.object.classification.front().label =
-        autoware_auto_perception_msgs::msg::ObjectClassification::UNKNOWN;
-      // Add additional information as needed
-      output_msg.feature_objects.push_back(unknown_obj);
-    }
-    pub_objects_ptr_->publish(output_msg);
-    return;
-  }
-
   if (input_pointcloud_msg.data.empty()) {
     return;
   }
   std::vector<DetectedObjectWithFeature> output_objs;
   // select ROIs for fusion
-  for (const auto & feature_obj : input_roi_msg.feature_objects) {
-    if (fuse_unknown_only_) {
-      bool is_roi_label_unknown = feature_obj.object.classification.front().label ==
-                                  autoware_auto_perception_msgs::msg::ObjectClassification::UNKNOWN;
-      if (is_roi_label_unknown) {
+  if (image_status_ok_) {
+    for (const auto & feature_obj : input_roi_msg.feature_objects) {
+      if (fuse_unknown_only_) {
+        bool is_roi_label_unknown = feature_obj.object.classification.front().label ==
+                                    autoware_auto_perception_msgs::msg::ObjectClassification::UNKNOWN;
+        if (is_roi_label_unknown) {
+          output_objs.push_back(feature_obj);
+        }
+      } else {
+        // TODO(badai-nguyen): selected class from a list
         output_objs.push_back(feature_obj);
       }
-    } else {
-      // TODO(badai-nguyen): selected class from a list
-      output_objs.push_back(feature_obj);
     }
-  }
-  if (output_objs.empty()) {
-    return;
-  }
-
-  // transform pointcloud to camera optical frame id
-  Eigen::Matrix4d projection;
-  projection << camera_info.p.at(0), camera_info.p.at(1), camera_info.p.at(2), camera_info.p.at(3),
-    camera_info.p.at(4), camera_info.p.at(5), camera_info.p.at(6), camera_info.p.at(7),
-    camera_info.p.at(8), camera_info.p.at(9), camera_info.p.at(10), camera_info.p.at(11);
-  geometry_msgs::msg::TransformStamped transform_stamped;
-  {
-    const auto transform_stamped_optional = getTransformStamped(
-      tf_buffer_, input_roi_msg.header.frame_id, input_pointcloud_msg.header.frame_id,
-      input_roi_msg.header.stamp);
-    if (!transform_stamped_optional) {
+    if (output_objs.empty()) {
       return;
     }
-    transform_stamped = transform_stamped_optional.value();
-  }
 
-  sensor_msgs::msg::PointCloud2 transformed_cloud;
-  tf2::doTransform(input_pointcloud_msg, transformed_cloud, transform_stamped);
-
-  std::vector<PointCloud> clusters;
-  clusters.resize(output_objs.size());
-
-  for (sensor_msgs::PointCloud2ConstIterator<float> iter_x(transformed_cloud, "x"),
-       iter_y(transformed_cloud, "y"), iter_z(transformed_cloud, "z"),
-       iter_orig_x(input_pointcloud_msg, "x"), iter_orig_y(input_pointcloud_msg, "y"),
-       iter_orig_z(input_pointcloud_msg, "z");
-       iter_x != iter_x.end();
-       ++iter_x, ++iter_y, ++iter_z, ++iter_orig_x, ++iter_orig_y, ++iter_orig_z) {
-    if (*iter_z <= 0.0) {
-      continue;
+    // transform pointcloud to camera optical frame id
+    Eigen::Matrix4d projection;
+    projection << camera_info.p.at(0), camera_info.p.at(1), camera_info.p.at(2), camera_info.p.at(3),
+      camera_info.p.at(4), camera_info.p.at(5), camera_info.p.at(6), camera_info.p.at(7),
+      camera_info.p.at(8), camera_info.p.at(9), camera_info.p.at(10), camera_info.p.at(11);
+    geometry_msgs::msg::TransformStamped transform_stamped;
+    {
+      const auto transform_stamped_optional = getTransformStamped(
+        tf_buffer_, input_roi_msg.header.frame_id, input_pointcloud_msg.header.frame_id,
+        input_roi_msg.header.stamp);
+      if (!transform_stamped_optional) {
+        return;
+      }
+      transform_stamped = transform_stamped_optional.value();
     }
-    Eigen::Vector4d projected_point = projection * Eigen::Vector4d(*iter_x, *iter_y, *iter_z, 1.0);
-    Eigen::Vector2d normalized_projected_point = Eigen::Vector2d(
-      projected_point.x() / projected_point.z(), projected_point.y() / projected_point.z());
 
-    for (std::size_t i = 0; i < output_objs.size(); ++i) {
-      auto & feature_obj = output_objs.at(i);
-      const auto & check_roi = feature_obj.feature.roi;
-      auto & cluster = clusters.at(i);
+    sensor_msgs::msg::PointCloud2 transformed_cloud;
+    tf2::doTransform(input_pointcloud_msg, transformed_cloud, transform_stamped);
 
-      if (
-        check_roi.x_offset <= normalized_projected_point.x() &&
-        check_roi.y_offset <= normalized_projected_point.y() &&
-        check_roi.x_offset + check_roi.width >= normalized_projected_point.x() &&
-        check_roi.y_offset + check_roi.height >= normalized_projected_point.y()) {
-        cluster.push_back(pcl::PointXYZ(*iter_orig_x, *iter_orig_y, *iter_orig_z));
+    std::vector<PointCloud> clusters;
+    clusters.resize(output_objs.size());
+
+    for (sensor_msgs::PointCloud2ConstIterator<float> iter_x(transformed_cloud, "x"),
+        iter_y(transformed_cloud, "y"), iter_z(transformed_cloud, "z"),
+        iter_orig_x(input_pointcloud_msg, "x"), iter_orig_y(input_pointcloud_msg, "y"),
+        iter_orig_z(input_pointcloud_msg, "z");
+        iter_x != iter_x.end();
+        ++iter_x, ++iter_y, ++iter_z, ++iter_orig_x, ++iter_orig_y, ++iter_orig_z) {
+      if (*iter_z <= 0.0) {
+        continue;
+      }
+      Eigen::Vector4d projected_point = projection * Eigen::Vector4d(*iter_x, *iter_y, *iter_z, 1.0);
+      Eigen::Vector2d normalized_projected_point = Eigen::Vector2d(
+        projected_point.x() / projected_point.z(), projected_point.y() / projected_point.z());
+
+      for (std::size_t i = 0; i < output_objs.size(); ++i) {
+        auto & feature_obj = output_objs.at(i);
+        const auto & check_roi = feature_obj.feature.roi;
+        auto & cluster = clusters.at(i);
+
+        if (
+          check_roi.x_offset <= normalized_projected_point.x() &&
+          check_roi.y_offset <= normalized_projected_point.y() &&
+          check_roi.x_offset + check_roi.width >= normalized_projected_point.x() &&
+          check_roi.y_offset + check_roi.height >= normalized_projected_point.y()) {
+          cluster.push_back(pcl::PointXYZ(*iter_orig_x, *iter_orig_y, *iter_orig_z));
+        }
       }
     }
-  }
 
-  // refine and update output_fused_objects_
-  updateOutputFusedObjects(
-    output_objs, clusters, input_pointcloud_msg.header, input_roi_msg.header, tf_buffer_,
-    min_cluster_size_, cluster_2d_tolerance_, output_fused_objects_);
+    // refine and update output_fused_objects_
+    updateOutputFusedObjects(
+      output_objs, clusters, input_pointcloud_msg.header, input_roi_msg.header, tf_buffer_,
+      min_cluster_size_, cluster_2d_tolerance_, output_fused_objects_);
+  } else {
+    // Handle the case where the image is not OK
+    // Process ROIs as UNKNOWN
+    for (const auto & feature_obj : input_roi_msg.feature_objects) {
+      DetectedObjectWithFeature unknown_obj = feature_obj;
+      unknown_obj.object.classification.front().label =
+        autoware_auto_perception_msgs::msg::ObjectClassification::UNKNOWN;
+      output_objs.push_back(unknown_obj);
+    }
+
+    // Create clusters and refine output_fused_objects_
+    std::vector<PointCloud> clusters;
+    clusters.resize(output_objs.size());
+    // Use the original point cloud for clustering
+    for (sensor_msgs::PointCloud2ConstIterator<float> iter_x(input_pointcloud_msg, "x"),
+         iter_y(input_pointcloud_msg, "y"), iter_z(input_pointcloud_msg, "z");
+         iter_x != iter_x.end();
+         ++iter_x, ++iter_y, ++iter_z) {
+      if (*iter_z <= 0.0) {
+        continue;
+      }
+
+      for (std::size_t i = 0; i < output_objs.size(); ++i) {
+        auto & cluster = clusters.at(i);
+        cluster.push_back(pcl::PointXYZ(*iter_x, *iter_y, *iter_z));
+      }
+    }
+
+    // Refine and update output_fused_objects_
+    updateOutputFusedObjects(
+      output_objs, clusters, input_pointcloud_msg.header, input_roi_msg.header, tf_buffer_,
+      min_cluster_size_, cluster_2d_tolerance_, output_fused_objects_);
+  }
 }
 
 bool RoiPointCloudFusionNode::out_of_scope(__attribute__((unused))
@@ -182,13 +200,18 @@ void RoiPointCloudFusionNode::imageStatusCallback(const tier4_debug_msgs::msg::I
 {
   if (msg.data == 0)
   {
+    if (image_status_ok_ == false) {
+      RCLCPP_INFO(this->get_logger(), "Image status changed to OK.");
+    }
     image_status_ok_ = true;
-    RCLCPP_INFO(this->get_logger(), "Image status changed to OK.");
+    
   }
   else if (msg.data == 2 || msg.data == 1)
   {
+    if (image_status_ok_ == true) {
+      RCLCPP_WARN(this->get_logger(), "Image status changed to BAD.");
+    }
     image_status_ok_ = false;
-    RCLCPP_WARN(this->get_logger(), "Image status changed to BAD.");
   }
 }
 
