@@ -46,6 +46,7 @@
 #define MAX_OFFSET 1.0
 #define LOOKAHEAD_COUNT 40
 #define OBSTACLE_THRESH 90
+#define OFFSET_DEADBAND_METERS 0.3
 
 namespace
 {
@@ -439,10 +440,11 @@ void BehaviorVelocityPlannerNode::findFreeSpaceAroundPath(const double x_in, con
                 if (value > OBSTACLE_THRESH) {
                     int grid_point_centered_x = j - x_grid;
                     int grid_point_centered_y = i - y_grid;
+                    //distance is in grid unit (resolution)
                     double dist = distanceToLine(grid_point_centered_x, grid_point_centered_y, theta);
 
                     // If distance is negative, it's on the left side of the line
-                    if (dist < -0.9) {
+                    if (dist < -(OFFSET_DEADBAND_METERS/resolution)) {
                         dist = fabs(dist);
                         if (dist < closestLeft) {
                             closestLeft = dist;
@@ -450,7 +452,7 @@ void BehaviorVelocityPlannerNode::findFreeSpaceAroundPath(const double x_in, con
                         }
                     } 
                     // If distance is positive, it's on the right side
-                    else if (dist > 0.9) {
+                    else if (dist > OFFSET_DEADBAND_METERS/resolution) {
                         if (dist < closestRight) {
                             closestRight = dist;
 
