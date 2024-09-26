@@ -462,7 +462,7 @@ void BehaviorVelocityPlannerNode::findFreeSpaceAroundPath(const double x_in, con
     }
 
     // Output the result
-    RCLCPP_WARN(get_logger(),"Closest left and right occupied grid: %f, %f", closestLeft, closestRight);
+    // RCLCPP_WARN(get_logger(),"Closest left and right occupied grid: %f, %f", closestLeft, closestRight);
     double left_offset, right_offset;
     left_offset = right_offset = 0;
 
@@ -511,58 +511,25 @@ autoware_auto_planning_msgs::msg::Path BehaviorVelocityPlannerNode::generatePath
 
 
   // new features ++++++++++++++++++++++++++++++++++++++
-  // Convert alpha from degrees to radians
-  // const double alpha_rad = tf2::getYaw(planner_data.current_odometry->pose.orientation);
-  // Get the center of the grid
-  int center_x = planner_data.occupancy_grid->info.width / 2;
-  int center_y = planner_data.occupancy_grid->info.height / 2;
-
-  // Define the length of the line (can be chosen arbitrarily)
-  // int line_length = 20; // Example length
-
-  // Calculate end point using trigonometry
-  // int end_x = center_x + line_length * cos(alpha_rad);
-  // int end_y = center_y + line_length * sin(alpha_rad);
-  double cx =  planner_data.current_odometry->pose.position.x;
-  double cy = planner_data.current_odometry->pose.position.y;
-
-
-
-  // RCLCPP_WARN_THROTTLE(
-  //     get_logger(), *get_clock(), 300, "Hello, I'm base_trajectory.{%ld} @ %f, position: %f, %f",interpolated_path_msg.points.size(),alpha_rad,cx,cy);
-  
+  // double cx =  planner_data.current_odometry->pose.position.x;
+  // double cy = planner_data.current_odometry->pose.position.y;
   int start_index = 0;//findClosestIndexOnPath(interpolated_path_msg, cx, cy);
-  RCLCPP_INFO(get_logger(),"Checking center from [%d, %d] to [%f, %f], start index: %d", center_x, center_y, cx, cy, start_index);
 
-
-  // if (interpolated_path_msg.points.size()>LOOKAHEAD_COUNT) {
-    for (size_t idx = start_index; idx < interpolated_path_msg.points.size(); ++idx) {
-      double x_out, y_out,x_in,y_in,theta;
-      x_in = interpolated_path_msg.points[idx].pose.position.x;
-      y_in = interpolated_path_msg.points[idx].pose.position.y;
-      theta = tf2::getYaw(interpolated_path_msg.points[idx].pose.orientation);
-      findFreeSpaceAroundPath(x_in,y_in, theta,planner_data, x_out, y_out);
-      if (abs(x_in-x_out) > 0.2 || abs(y_in-y_out) > 0.2 ){
-        interpolated_path_msg.points[idx].longitudinal_velocity_mps = 0.6;
-      }
-      // RCLCPP_WARN(
-      // get_logger(), "path: %ld, position: %f, %f. theta: %f",idx,x_out,y_out,theta);
-      interpolated_path_msg.points[idx].pose.position.x = x_out;
-      interpolated_path_msg.points[idx].pose.position.y = y_out;
-
+  for (size_t idx = start_index; idx < interpolated_path_msg.points.size(); ++idx) {
+    double x_out, y_out,x_in,y_in,theta;
+    x_in = interpolated_path_msg.points[idx].pose.position.x;
+    y_in = interpolated_path_msg.points[idx].pose.position.y;
+    theta = tf2::getYaw(interpolated_path_msg.points[idx].pose.orientation);
+    findFreeSpaceAroundPath(x_in,y_in, theta,planner_data, x_out, y_out);
+    if (abs(x_in-x_out) > 0.2 || abs(y_in-y_out) > 0.2 ){
+      interpolated_path_msg.points[idx].longitudinal_velocity_mps = 0.6;
     }
-  // }
-  //     const auto path_point = path.points.at(idx);
+    // RCLCPP_WARN(
+    // get_logger(), "path: %ld, position: %f, %f. theta: %f",idx,x_out,y_out,theta);
+    interpolated_path_msg.points[idx].pose.position.x = x_out;
+    interpolated_path_msg.points[idx].pose.position.y = y_out;
 
-  //     x.push_back(path_point.pose.position.x);
-  //     y.push_back(path_point.pose.position.y);
-  //     z.push_back(path_point.pose.position.z);
-  //     v.push_back(path_point.longitudinal_velocity_mps);
-  // }
-  // for (unsigned long int i = 0; i < interpolated_path_msg.size(); ++i) {
-  //   output_trajectory_points[i].pose.position.x += 1.2;
-  //   output_trajectory_points[i].pose.position.y += 1.2;
-  // }
+  }
 
   // check stop point
   output_path_msg = filterStopPathPoint(interpolated_path_msg);
