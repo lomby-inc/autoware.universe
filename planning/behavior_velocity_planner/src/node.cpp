@@ -38,6 +38,15 @@
 #include <memory>
 #include <vector>
 
+#include <tf2/utils.h>
+
+#define NEIGHBORS_METERS 1.0
+#define MAX_VALUE 1000.0
+#define SAFE_DISTANCE 1.0
+#define MAX_OFFSET 1.0
+#define LOOKAHEAD_COUNT 40
+#define OBSTACLE_THRESH 90
+
 namespace
 {
 rclcpp::SubscriptionOptions createSubscriptionOptions(rclcpp::Node * node_ptr)
@@ -255,8 +264,8 @@ void BehaviorVelocityPlannerNode::onNoGroundPointCloud(
 
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    planner_data_.no_ground_pointcloud = pc_transformed;
-  }
+  planner_data_.no_ground_pointcloud = pc_transformed;
+}
 }
 
 void BehaviorVelocityPlannerNode::onOdometry(const nav_msgs::msg::Odometry::ConstSharedPtr msg)
@@ -334,7 +343,7 @@ void BehaviorVelocityPlannerNode::onExternalVelocityLimit(const VelocityLimit::C
 {
   std::lock_guard<std::mutex> lock(mutex_);
   planner_data_.external_velocity_limit = *msg;
-}
+  }
 
 void BehaviorVelocityPlannerNode::onVirtualTrafficLightStates(
   const tier4_v2x_msgs::msg::VirtualTrafficLightStateArray::ConstSharedPtr msg)
@@ -380,6 +389,94 @@ void BehaviorVelocityPlannerNode::onTrigger(
   }
 }
 
+
+// Helper functions for new features +++++++++++++++++++++++++++++
+
+// Function to compute distance from point (px, py) to the line through origin with angle theta
+double BehaviorVelocityPlannerNode::distanceToLine(int px, int py, double theta) {
+    // Parametric equation of the line: y = tan(theta) * x
+    // Distance to line formula for vertical or horizontal line
+    return (px * sin(theta) - py * cos(theta));
+}
+
+int BehaviorVelocityPlannerNode::findClosestIndexOnPath(const autoware_auto_planning_msgs::msg::Path & path, const double x, const double y){
+  double min_dist = MAX_VALUE;
+  int closest_index = -1;
+  for(size_t i = 0; i < path.points.size(); i++){
+      double dist =  std::sqrt(std::pow(path.points[i].pose.position.x - x, 2) + std::pow(path.points[i].pose.position.y - y, 2));
+      if(dist < min_dist){
+          min_dist = dist;
+          closest_index = i;
+      }
+  }
+  return closest_index;
+}
+
+void BehaviorVelocityPlannerNode::findFreeSpaceAroundPath(const double x_in, const double y_in, const double theta, const PlannerData & planner_data, double & x_out, double & y_out){
+    double resolution = planner_data.occupancy_grid->info.resolution;
+    double dx = x_in - planner_data.occupancy_grid->info.origin.position.x;
+    double dy = y_in - planner_data.occupancy_grid->info.origin.position.y;
+    int x_grid = static_cast<int>(dx / resolution);
+    int y_grid = static_cast<int>(dy / resolution);
+    int neighbor_size = static_cast<int>(NEIGHBORS_METERS / resolution);  //<<<<<<Change this
+
+    int min_v, max_v, min_h, max_h;
+    min_v = min_h = 0;
+    max_v = planner_data.occupancy_grid->info.height - 1;
+    max_h = planner_data.occupancy_grid->info.width - 1;
+    if (x_grid - neighbor_size >= 0) min_h = x_grid - neighbor_size;
+    if (x_grid + neighbor_size < max_h) max_h = x_grid + neighbor_size;
+    if (y_grid - neighbor_size >= 0) min_v = y_grid - neighbor_size;
+    if (y_grid + neighbor_size < max_v) max_v = y_grid + neighbor_size;
+    double closestLeft = MAX_VALUE;
+    double closestRight = MAX_VALUE;
+
+    for (int i = min_v; i <= max_v; i++) {
+        for (int j = min_h; j <= max_h; j++) {
+            unsigned int index = j + i * planner_data.occupancy_grid->info.width;
+            if (index < planner_data.occupancy_grid->data.size()) {
+                int value = planner_data.occupancy_grid->data[index]; // Get occupancy value (0-100)
+                if (value > OBSTACLE_THRESH) {
+                    int grid_point_centered_x = j - x_grid;
+                    int grid_point_centered_y = i - y_grid;
+                    double dist = distanceToLine(grid_point_centered_x, grid_point_centered_y, theta);
+
+                    // If distance is negative, it's on the left side of the line
+                    if (dist < -0.9) {
+                        dist = fabs(dist);
+                        if (dist < closestLeft) {
+                            closestLeft = dist;
+
+                        }
+                    } 
+                    // If distance is positive, it's on the right side
+                    else if (dist > 0.9) {
+                        if (dist < closestRight) {
+                            closestRight = dist;
+
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Output the result
+    RCLCPP_WARN(get_logger(),"Closest left and right occupied grid: %f, %f", closestLeft, closestRight);
+    double left_offset, right_offset;
+    left_offset = right_offset = 0;
+
+    if(closestLeft*resolution < SAFE_DISTANCE) left_offset = SAFE_DISTANCE - closestLeft*resolution;
+    if(closestRight*resolution < SAFE_DISTANCE) right_offset = SAFE_DISTANCE - closestRight*resolution;
+    
+    x_out = x_in + (left_offset - right_offset) * sin(theta);
+    y_out = y_in - (left_offset - right_offset) * cos(theta);
+    
+}
+
+
+
+
 autoware_auto_planning_msgs::msg::Path BehaviorVelocityPlannerNode::generatePath(
   const autoware_auto_planning_msgs::msg::PathWithLaneId::ConstSharedPtr input_path_msg,
   const PlannerData & planner_data)
@@ -409,7 +506,63 @@ autoware_auto_planning_msgs::msg::Path BehaviorVelocityPlannerNode::generatePath
   const auto filtered_path = filterLitterPathPoint(to_path(velocity_planned_path));
 
   // interpolation
-  const auto interpolated_path_msg = interpolatePath(filtered_path, forward_path_length_);
+  auto interpolated_path_msg = interpolatePath(
+    filtered_path, forward_path_length_);
+
+
+  // new features ++++++++++++++++++++++++++++++++++++++
+  // Convert alpha from degrees to radians
+  // const double alpha_rad = tf2::getYaw(planner_data.current_odometry->pose.orientation);
+  // Get the center of the grid
+  int center_x = planner_data.occupancy_grid->info.width / 2;
+  int center_y = planner_data.occupancy_grid->info.height / 2;
+
+  // Define the length of the line (can be chosen arbitrarily)
+  // int line_length = 20; // Example length
+
+  // Calculate end point using trigonometry
+  // int end_x = center_x + line_length * cos(alpha_rad);
+  // int end_y = center_y + line_length * sin(alpha_rad);
+  double cx =  planner_data.current_odometry->pose.position.x;
+  double cy = planner_data.current_odometry->pose.position.y;
+
+
+
+  // RCLCPP_WARN_THROTTLE(
+  //     get_logger(), *get_clock(), 300, "Hello, I'm base_trajectory.{%ld} @ %f, position: %f, %f",interpolated_path_msg.points.size(),alpha_rad,cx,cy);
+  
+  int start_index = 0;//findClosestIndexOnPath(interpolated_path_msg, cx, cy);
+  RCLCPP_INFO(get_logger(),"Checking center from [%d, %d] to [%f, %f], start index: %d", center_x, center_y, cx, cy, start_index);
+
+
+  // if (interpolated_path_msg.points.size()>LOOKAHEAD_COUNT) {
+    for (size_t idx = start_index; idx < interpolated_path_msg.points.size(); ++idx) {
+      double x_out, y_out,x_in,y_in,theta;
+      x_in = interpolated_path_msg.points[idx].pose.position.x;
+      y_in = interpolated_path_msg.points[idx].pose.position.y;
+      theta = tf2::getYaw(interpolated_path_msg.points[idx].pose.orientation);
+      findFreeSpaceAroundPath(x_in,y_in, theta,planner_data, x_out, y_out);
+      if (abs(x_in-x_out) > 0.2 || abs(y_in-y_out) > 0.2 ){
+        interpolated_path_msg.points[idx].longitudinal_velocity_mps = 0.6;
+      }
+      // RCLCPP_WARN(
+      // get_logger(), "path: %ld, position: %f, %f. theta: %f",idx,x_out,y_out,theta);
+      interpolated_path_msg.points[idx].pose.position.x = x_out;
+      interpolated_path_msg.points[idx].pose.position.y = y_out;
+
+    }
+  // }
+  //     const auto path_point = path.points.at(idx);
+
+  //     x.push_back(path_point.pose.position.x);
+  //     y.push_back(path_point.pose.position.y);
+  //     z.push_back(path_point.pose.position.z);
+  //     v.push_back(path_point.longitudinal_velocity_mps);
+  // }
+  // for (unsigned long int i = 0; i < interpolated_path_msg.size(); ++i) {
+  //   output_trajectory_points[i].pose.position.x += 1.2;
+  //   output_trajectory_points[i].pose.position.y += 1.2;
+  // }
 
   // check stop point
   output_path_msg = filterStopPathPoint(interpolated_path_msg);
