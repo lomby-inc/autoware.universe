@@ -42,8 +42,8 @@
 
 #define NEIGHBORS_METERS 1.0
 #define MAX_VALUE 1000.0
-#define SAFE_DISTANCE 1.0
-#define MAX_OFFSET 1.0
+#define SAFE_DISTANCE 0.5
+#define MAX_OFFSET 0.5
 #define LOOKAHEAD_COUNT 40
 #define OBSTACLE_THRESH 90
 #define OFFSET_DEADBAND_METERS 0.3
@@ -470,6 +470,9 @@ void BehaviorVelocityPlannerNode::findFreeSpaceAroundPath(const double x_in, con
 
     if(closestLeft*resolution < SAFE_DISTANCE) left_offset = SAFE_DISTANCE - closestLeft*resolution;
     if(closestRight*resolution < SAFE_DISTANCE) right_offset = SAFE_DISTANCE - closestRight*resolution;
+
+    if(left_offset > MAX_OFFSET) left_offset = MAX_OFFSET;
+    if(right_offset > MAX_OFFSET) right_offset = MAX_OFFSET;
     
     x_out = x_in + (left_offset - right_offset) * sin(theta);
     y_out = y_in - (left_offset - right_offset) * cos(theta);
