@@ -88,6 +88,9 @@ private:
     float min_z;
     float max_z;
     bool negative{false};
+    float top_angle;
+    float left_angle;
+    float right_angle;
   } param_;
 
   rclcpp::Publisher<geometry_msgs::msg::PolygonStamped>::SharedPtr crop_box_polygon_pub_;
