@@ -54,6 +54,7 @@
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 
 #include <vector>
+#include <cmath>
 
 namespace pointcloud_preprocessor
 {
@@ -80,6 +81,10 @@ CropBoxFilterComponent::CropBoxFilterComponent(const rclcpp::NodeOptions & optio
     p.max_y = static_cast<float>(declare_parameter("max_y", 1.0));
     p.max_z = static_cast<float>(declare_parameter("max_z", 1.0));
     p.negative = static_cast<bool>(declare_parameter("negative", false));
+    p.top_angle = static_cast<float>(declare_parameter("top_angle", 0.08));
+    p.right_angle = static_cast<float>(declare_parameter("right_angle", -0.8));
+    p.left_angle = static_cast<float>(declare_parameter("left_angle", 0.8));
+
     if (tf_input_frame_.empty()) {
       throw std::invalid_argument("Crop box requires non-empty input_frame");
     }
@@ -152,6 +157,17 @@ void CropBoxFilterComponent::faster_filter(
     bool point_is_inside = point[2] > param_.min_z && point[2] < param_.max_z &&
                            point[1] > param_.min_y && point[1] < param_.max_y &&
                            point[0] > param_.min_x && point[0] < param_.max_x;
+
+    double r = std::hypot(point[0], point[1]);
+    double max_radius_at_pz = fabs(point[2] / std::tan(param_.top_angle));
+    // theta 0 is the front of robot and then clockwise
+    double theta = atan2(point[0], -point[1]);
+    if (max_radius_at_pz > 1.0)  max_radius_at_pz = 1.0;
+    // (void) max_radius_at_pz;
+    bool point_is_in_cone =  point[2] < 0.0 && r < max_radius_at_pz && 
+                            !(theta > param_.right_angle && theta < param_.left_angle);
+    point_is_inside =  point_is_inside || point_is_in_cone;
+
     if ((!param_.negative && point_is_inside) || (param_.negative && !point_is_inside)) {
       memcpy(&output.data[output_size], &input->data[global_offset], input->point_step);
 
@@ -260,21 +276,30 @@ rcl_interfaces::msg::SetParametersResult CropBoxFilterComponent::paramCallback(
     get_param(p, "min_x", new_param.min_x) && get_param(p, "min_y", new_param.min_y) &&
     get_param(p, "min_z", new_param.min_z) && get_param(p, "max_x", new_param.max_x) &&
     get_param(p, "max_y", new_param.max_y) && get_param(p, "max_z", new_param.max_z) &&
-    get_param(p, "negative", new_param.negative)) {
+    get_param(p, "negative", new_param.negative) &&
+    get_param(p, "top_angle", new_param.top_angle) &&
+    get_param(p, "left_angle", new_param.left_angle) &&
+    get_param(p, "right_angle", new_param.right_angle) ) {
     if (
       param_.min_x != new_param.min_x || param_.max_x != new_param.max_x ||
       param_.min_y != new_param.min_y || param_.max_y != new_param.max_y ||
       param_.min_z != new_param.min_z || param_.max_z != new_param.max_z ||
-      param_.negative != new_param.negative) {
+      param_.negative != new_param.negative ||
+      param_.top_angle != new_param.top_angle ||
+      param_.left_angle != new_param.left_angle ||
+      param_.right_angle != new_param.right_angle ) {
       RCLCPP_DEBUG(
         get_logger(), "[%s::paramCallback] Setting the minimum point to: %f %f %f.", get_name(),
         new_param.min_x, new_param.min_y, new_param.min_z);
       RCLCPP_DEBUG(
-        get_logger(), "[%s::paramCallback] Setting the minimum point to: %f %f %f.", get_name(),
+        get_logger(), "[%s::paramCallback] Setting the maximum point to: %f %f %f.", get_name(),
         new_param.max_x, new_param.max_y, new_param.max_z);
       RCLCPP_DEBUG(
         get_logger(), "[%s::paramCallback] Setting the filter negative flag to: %s.", get_name(),
         new_param.negative ? "true" : "false");
+      RCLCPP_DEBUG(
+        get_logger(), "[%s::paramCallback] Setting the angle limits to: %f %f %f.", get_name(),
+        new_param.top_angle, new_param.left_angle, new_param.right_angle);
       param_ = new_param;
     }
   }

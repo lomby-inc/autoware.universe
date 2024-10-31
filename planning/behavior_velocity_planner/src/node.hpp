@@ -127,6 +127,11 @@ private:
   autoware_auto_planning_msgs::msg::Path generatePath(
     const autoware_auto_planning_msgs::msg::PathWithLaneId::ConstSharedPtr input_path_msg,
     const PlannerData & planner_data);
+  
+  void findFreeSpaceAroundPath(const double x_in, const double y_in, double theta, const PlannerData & planner_data, double & x_out, double & y_out);
+  double distanceToLine(int px, int py, double theta);
+  int findClosestIndexOnPath(const autoware_auto_planning_msgs::msg::Path & path, const double x, const double y);
+
 
   std::unique_ptr<tier4_autoware_utils::LoggerLevelConfigure> logger_configure_;
 };
