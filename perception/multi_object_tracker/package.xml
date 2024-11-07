@@ -19,6 +19,7 @@
   <depend>glog</depend>
   <depend>kalman_filter</depend>
   <depend>mussp</depend>
+  <depend>diagnostic_updater</depend>
   <depend>object_recognition_utils</depend>
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
