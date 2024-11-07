@@ -17,6 +17,7 @@
   <depend>kalman_filter</depend>
   <depend>libgoogle-glog-dev</depend>
   <depend>mussp</depend>
+  <depend>diagnostic_updater</depend>
   <depend>object_recognition_utils</depend>
   <depend>rclcpp</depend>
   <depend>diagnostic_updater</depend>
