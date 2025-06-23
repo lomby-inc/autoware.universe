@@ -1,6 +1,8 @@
 <launch>
   <arg name="enable_all_modules_auto_mode"/>
   <arg name="is_simulation"/>
+  <arg name="behavior_component" default="autoware"/>
+  <arg name="local_planning" default="autoware"/>
 
   <!-- lane_driving scenario -->
   <group>
@@ -15,6 +17,7 @@
           <arg name="is_simulation" value="$(var is_simulation)"/>
           <!-- This condition should be true if run_out module is enabled and its detection method is Points -->
           <arg name="launch_compare_map_pipeline" value="false"/>
+          <arg name="behavior_component" value="$(var behavior_component)"/>
         </include>
       </group>
     </group>
@@ -25,6 +28,7 @@
       <group>
         <include file="$(find-pkg-share tier4_planning_launch)/launch/scenario_planning/lane_driving/motion_planning/motion_planning.launch.xml">
           <arg name="container_type" value="component_container_mt"/>
+          <arg name="local_planning" value="$(var local_planning)"/>
         </include>
       </group>
     </group>

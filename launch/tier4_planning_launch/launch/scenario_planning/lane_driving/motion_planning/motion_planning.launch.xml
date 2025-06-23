@@ -30,6 +30,8 @@
     <composable_node pkg="glog_component" plugin="GlogComponent" name="glog_component" namespace=""/>
   </node_container>
 
+  <arg name="local_planning" default="autoware"/>
+
   <!-- path smoothing -->
   <group>
     <group if="$(eval &quot;'$(var motion_path_smoother_type)' == 'elastic_band'&quot;)">
@@ -65,7 +67,7 @@
   </group>
 
   <!-- generate kinematic-feasible path -->
-  <group>
+  <group if="$(eval &quot;'$(var local_planning)' == 'autoware'&quot;)">
     <group if="$(eval &quot;'$(var motion_path_planner_type)' == 'path_optimizer'&quot;)">
       <load_composable_node target="/planning/scenario_planning/lane_driving/motion_planning/motion_planning_container">
         <composable_node pkg="autoware_path_optimizer" plugin="autoware::path_optimizer::PathOptimizer" name="path_optimizer" namespace="">
@@ -152,7 +154,7 @@
   </group>
 
   <!-- obstacle stop, adaptive cruise -->
-  <group>
+  <group if="$(eval &quot;'$(var local_planning)' == 'autoware'&quot;)">
     <group if="$(eval &quot;'$(var motion_stop_planner_type)' == 'obstacle_cruise_planner'&quot;)">
       <load_composable_node target="/planning/scenario_planning/lane_driving/motion_planning/motion_planning_container">
         <composable_node pkg="autoware_obstacle_cruise_planner" plugin="autoware::motion_planning::ObstacleCruisePlannerNode" name="obstacle_cruise_planner" namespace="">

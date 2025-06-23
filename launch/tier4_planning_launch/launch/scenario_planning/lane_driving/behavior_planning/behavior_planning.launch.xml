@@ -36,6 +36,8 @@
 
   <arg name="launch_module_list_end" default="&quot;&quot;]"/>
 
+  <arg name="behavior_component" default="autoware"/>
+
   <!-- assemble launch config for behavior path planner -->
   <arg name="behavior_path_planner_launch_modules" default="["/>
   <let
