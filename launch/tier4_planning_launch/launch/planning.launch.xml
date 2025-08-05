@@ -39,7 +39,15 @@
 
     <!-- Nav2 Planning Pipeline -->
     <group if="$(eval &quot;'$(var global_planning)' == 'nav2_planning' and '$(var behavior_component)' == 'nav2_bt'&quot;)">
-      <include launch-file="$(find-pkg-share lomby_nav2_global_planner)/launch/nav2.launch.py" />
+      <include file="$(find-pkg-share lomby_nav2_global_planner)/launch/nav2.launch.py" />
+    </group>
+
+    <group if="$(eval &quot;'$(var local_planning)' == 'nav2_controller'&quot;)">
+      <include file="$(find-pkg-share autoware_nav2_local_control)/launch/autoware_path_to_nav2_path.launch.py"/>
+      <include file="$(find-pkg-share autoware_nav2_local_control)/launch/goal_to_path.launch.py"/>
+      <include file="$(find-pkg-share autoware_nav2_local_control)/launch/nav2_local_control.launch.py"/>
+      <include file="$(find-pkg-share autoware_nav2_local_control)/launch/nav2_path_to_autoware_path.launch.py"/>
+      <include file="$(find-pkg-share autoware_nav2_local_control)/launch/path_optimizer.launch.py"/>
     </group>
 
     <!-- planning validator -->

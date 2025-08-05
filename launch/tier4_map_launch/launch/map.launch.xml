@@ -24,13 +24,13 @@
   <arg name="vector_map_marker_topic" default="vector_map_marker"/>
 
   <group if="$(eval &quot;'$(var vector_map_type)' == 'lanelet'&quot;)">
-      <arg name="vector_map_topic" value="vector_map"/>]
-      <arg name="vector_map_marker_topic" default="vector_map_marker"/>
+      <let name="vector_map_topic" value="vector_map"/>
+      <let name="vector_map_marker_topic" value="vector_map_marker"/>
   </group>
 
   <group if="$(eval &quot;'$(var vector_map_type)' == 'linestring'&quot;)">
-      <arg name="vector_map_topic" value="vector_map_linestring"/>]
-      <arg name="vector_map_marker_topic" default="vector_map_linestring_marker"/>
+      <let name="vector_map_topic" value="vector_map_linestring"/>
+      <let name="vector_map_marker_topic" value="vector_map_linestring_marker"/>
   </group>
 
   <group>
@@ -80,9 +80,9 @@
     </include>
 
     <group if="$(eval &quot;'$(var vector_map_type)' == 'linestring'&quot;)">
-      <include launch-file="$(find-pkg-share lomby_custom_planner_global)/launch/linestrings_markers_publisher.launch.py" />
-      <include launch-file="$(find-pkg-share lomby_nav2_global_planner)/launch/dummy_boundary_publisher.launch.py" />
-      <include launch-file="$(find-pkg-share lomby_nav2_global_planner)/launch/virtual_lanelet_map.launch.py" />
+      <include file="$(find-pkg-share lomby_custom_planner_global)/launch/linestrings_markers_publisher.launch.py"/>
+      <include file="$(find-pkg-share lomby_nav2_global_planner)/launch/dummy_boundary_publisher.launch.py"/>
+      <include file="$(find-pkg-share lomby_nav2_global_planner)/launch/virtual_lanelet_map.launch.py"/>
     </group>
 
   </group>
