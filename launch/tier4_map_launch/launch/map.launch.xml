@@ -1,4 +1,6 @@
-<launch>
+<?xml version="1.0"?>
+<launch>  
+  <arg name="vector_map_type" default="lanelet"/>
   <!-- map files -->
   <arg name="pointcloud_map_path"/>
   <arg name="pointcloud_map_metadata_path"/>
@@ -20,17 +22,19 @@
   <let name="container_type" value="component_container" unless="$(var use_multithread)"/>
   <let name="container_type" value="component_container_mt" if="$(var use_multithread)"/>
 
-  <arg name="vector_map_topic" default="vector_map"/>
-  <arg name="vector_map_marker_topic" default="vector_map_marker"/>
+  <!-- Have yet to fix parameter interaction between launch files. When loading normal vector maps should change to vector_map and  vector_map_marker.
+  When working with linestring lanelets, It should be forced to  vector_map_linestring and vector_map_linestring_marker.-->
+  <let name="vector_map_topic" value="vector_map_linestring"/>
+  <let name="vector_map_marker_topic" value="vector_map_linestring_marker"/>
 
   <group if="$(eval &quot;'$(var vector_map_type)' == 'lanelet'&quot;)">
-      <let name="vector_map_topic" value="vector_map"/>
-      <let name="vector_map_marker_topic" value="vector_map_marker"/>
+    <let name="vector_map_topic" value="vector_map"/>
+    <let name="vector_map_marker_topic" value="vector_map_marker"/>
   </group>
 
   <group if="$(eval &quot;'$(var vector_map_type)' == 'linestring'&quot;)">
-      <let name="vector_map_topic" value="vector_map_linestring"/>
-      <let name="vector_map_marker_topic" value="vector_map_linestring_marker"/>
+    <let name="vector_map_topic" value="vector_map_linestring"/>
+    <let name="vector_map_marker_topic" value="vector_map_linestring_marker"/>
   </group>
 
   <group>
