@@ -66,9 +66,9 @@
     </group>
 
     <!-- Service Log Checker -->
-    <group>
+    <!-- <group>
       <include file="$(find-pkg-share component_interface_tools)/launch/service_log_checker.launch.xml"/>
-    </group>
+    </group> -->
 
     <!-- Component State Monitor -->
     <group>
