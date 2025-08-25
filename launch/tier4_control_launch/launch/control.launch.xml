@@ -231,7 +231,7 @@
     <push-ros-namespace namespace="control"/>
 
     <!-- control validator checker -->
-    <node_container pkg="rclcpp_components" exec="$(var container_executable)" name="control_validator_container" namespace="">
+    <!-- <node_container pkg="rclcpp_components" exec="$(var container_executable)" name="control_validator_container" namespace="">
       <composable_node pkg="autoware_control_validator" plugin="autoware::control_validator::ControlValidator" name="control_validator">
         <remap from="~/input/kinematics" to="/localization/kinematic_state"/>
         <remap from="~/input/reference_trajectory" to="/planning/scenario_planning/trajectory"/>
@@ -241,7 +241,7 @@
       </composable_node>
 
       <composable_node pkg="glog_component" plugin="GlogComponent" name="glog_validator_component"/>
-    </node_container>
+    </node_container> -->
   </group>
 
   <group if="$(eval &quot;'$(var trajectory_follower_mode)' == 'smart_mpc_trajectory_follower'&quot;)">

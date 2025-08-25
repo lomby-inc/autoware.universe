@@ -51,7 +51,7 @@ def generate_launch_description():
         create_api_node("operation_mode", "OperationModeNode"),
         create_api_node("perception", "PerceptionNode"),
         create_api_node("planning", "PlanningNode"),
-        create_api_node("routing", "RoutingNode"),
+        # create_api_node("routing", "RoutingNode"),
         create_api_node("vehicle", "VehicleNode"),
         create_api_node("vehicle_info", "VehicleInfoNode"),
         create_api_node("vehicle_door", "VehicleDoorNode"),
