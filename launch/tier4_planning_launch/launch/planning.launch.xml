@@ -46,7 +46,7 @@
       <include file="$(find-pkg-share autoware_nav2_local_control)/launch/autoware_path_to_nav2_path.launch.py"/>
       <include file="$(find-pkg-share autoware_nav2_local_control)/launch/goal_to_path.launch.py"/>
       <!-- <include file="$(find-pkg-share autoware_nav2_local_control)/launch/nav2_local_control.launch.py"/> -->
-      <include file="$(find-pkg-share autoware_nav2_local_control)/launch/nav2_path_to_autoware_path.launch.py"/>
+      <!-- <include file="$(find-pkg-share autoware_nav2_local_control)/launch/nav2_path_to_autoware_path.launch.py"/> -->
       <include file="$(find-pkg-share autoware_nav2_local_control)/launch/path_optimizer.launch.py"/>
     </group>
 
