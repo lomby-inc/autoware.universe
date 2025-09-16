@@ -24,6 +24,8 @@
 
   <!-- Have yet to fix parameter interaction between launch files. When loading normal vector maps should change to vector_map and  vector_map_marker.
   When working with linestring lanelets, It should be forced to  vector_map_linestring and vector_map_linestring_marker.-->
+  <!-- <let name="vector_map_topic" value="vector_map"/>
+  <let name="vector_map_marker_topic" value="vector_map_marker"/> -->
   <let name="vector_map_topic" value="vector_map_linestring"/>
   <let name="vector_map_marker_topic" value="vector_map_linestring_marker"/>
 
