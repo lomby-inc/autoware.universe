@@ -89,6 +89,7 @@
       <include file="$(find-pkg-share lomby_custom_planner_global)/launch/linestrings_markers_publisher.launch.py"/>
       <include file="$(find-pkg-share lomby_nav2_global_planner)/launch/dummy_boundary_publisher.launch.py"/>
       <include file="$(find-pkg-share lomby_nav2_global_planner)/launch/virtual_lanelet_map.launch.py"/>
+      <include file="$(find-pkg-share lomby_nav2_global_planner)/launch/linestring_to_lanelet_route.launch.py"/>
     </group>
 
   </group>
