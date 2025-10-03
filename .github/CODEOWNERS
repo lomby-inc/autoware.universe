@@ -228,3 +228,4 @@ visualization/tier4_traffic_light_rviz_plugin/** satoshi.ota@tier4.jp
 visualization/tier4_vehicle_rviz_plugin/** yukihiro.saito@tier4.jp
 
 ### Copied from .github/CODEOWNERS-manual ###
+*   @lomby-inc/autoware-reviewers
