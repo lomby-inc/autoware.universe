@@ -55,6 +55,7 @@ void RoutingAdaptor::on_timer()
   constexpr int delay_count = 3;  // 0.4 seconds (rate * (value - 1))
   if (0 < request_timing_control_ && request_timing_control_ < delay_count) {
     ++request_timing_control_;
+    RCLCPP_DEBUG(get_logger(), "[routing_adaptor] timer tick %d/%d", request_timing_control_, delay_count);
   }
   if (request_timing_control_ != delay_count) {
     return;
@@ -62,10 +63,14 @@ void RoutingAdaptor::on_timer()
 
   if (!calling_service_) {
     if (state_ != RouteState::Message::UNSET) {
+      RCLCPP_DEBUG(get_logger(), "[routing_adaptor] TX ClearRoute (state=%u)", state_);
       const auto request = std::make_shared<ClearRoute::Service::Request>();
       calling_service_ = true;
       cli_clear_->async_send_request(request, [this](auto) { calling_service_ = false; });
     } else {
+      RCLCPP_DEBUG(get_logger(), "[routing_adaptor] TX SetRoutePoints goal=(%.2f, %.2f, %.2f) waypoints=%zu",
+                  route_->goal.position.x, route_->goal.position.y, route_->goal.position.z,
+                  route_->waypoints.size());
       request_timing_control_ = 0;
       calling_service_ = true;
       cli_route_->async_send_request(route_, [this](auto) { calling_service_ = false; });
@@ -75,6 +80,10 @@ void RoutingAdaptor::on_timer()
 
 void RoutingAdaptor::on_fixed_goal(const PoseStamped::ConstSharedPtr pose)
 {
+  RCLCPP_DEBUG(get_logger(), "[routing_adaptor] RX FixedGoal frame='%s' pos=(%.2f, %.2f, %.2f)",
+              pose->header.frame_id.c_str(),
+              pose->pose.position.x, pose->pose.position.y, pose->pose.position.z);
+
   request_timing_control_ = 1;
   route_->header = pose->header;
   route_->goal = pose->pose;
@@ -84,6 +93,10 @@ void RoutingAdaptor::on_fixed_goal(const PoseStamped::ConstSharedPtr pose)
 
 void RoutingAdaptor::on_rough_goal(const PoseStamped::ConstSharedPtr pose)
 {
+  RCLCPP_DEBUG(get_logger(), "[routing_adaptor] RX RoughGoal frame='%s' pos=(%.2f, %.2f, %.2f)",
+              pose->header.frame_id.c_str(),
+              pose->pose.position.x, pose->pose.position.y, pose->pose.position.z);
+
   request_timing_control_ = 1;
   route_->header = pose->header;
   route_->goal = pose->pose;
@@ -99,6 +112,10 @@ void RoutingAdaptor::on_waypoint(const PoseStamped::ConstSharedPtr pose)
   }
   request_timing_control_ = 1;
   route_->waypoints.push_back(pose->pose);
+
+  RCLCPP_DEBUG(get_logger(), "[routing_adaptor] RX Waypoint #%zu pos=(%.2f, %.2f, %.2f)",
+              route_->waypoints.size(),
+              pose->pose.position.x, pose->pose.position.y, pose->pose.position.z);
 }
 
 void RoutingAdaptor::on_reroute(const PoseStamped::ConstSharedPtr pose)
@@ -106,6 +123,11 @@ void RoutingAdaptor::on_reroute(const PoseStamped::ConstSharedPtr pose)
   const auto route = std::make_shared<SetRoutePoints::Service::Request>();
   route->header = pose->header;
   route->goal = pose->pose;
+
+  RCLCPP_DEBUG(get_logger(), "[routing_adaptor] TX Reroute pos=(%.2f, %.2f, %.2f) frame='%s'",
+              pose->pose.position.x, pose->pose.position.y, pose->pose.position.z,
+              pose->header.frame_id.c_str());
+
   cli_reroute_->async_send_request(route);
 }
 

@@ -163,6 +163,7 @@ void RouteSelector::on_clear_route_main(
 
   // During MRM, only change the state.
   if (mrm_operating_) {
+    RCLCPP_DEBUG(get_logger(), "[MAIN] In MRM -> only change state to UNSET.");
     main_.change_state(RouteState::UNSET);
     res->status.success = true;
     return;
@@ -182,12 +183,14 @@ void RouteSelector::on_set_waypoint_route_main(
 
   // During MRM, only change the state.
   if (mrm_operating_) {
+    RCLCPP_DEBUG(get_logger(), "[MAIN] In MRM -> change state to INTERRUPTED, do not forward.");
     main_.change_state(RouteState::INTERRUPTED);
     res->status.success = true;
     return;
   }
 
   // Forward the request if not in MRM.
+  RCLCPP_DEBUG(get_logger(), "[MAIN] FWD -> %s", cli_set_waypoint_route_->get_service_name());
   res->status = service_utils::sync_call(cli_set_waypoint_route_, req);
 }
 
@@ -201,12 +204,14 @@ void RouteSelector::on_set_lanelet_route_main(
 
   // During MRM, only change the state.
   if (mrm_operating_) {
+    RCLCPP_DEBUG(get_logger(), "[MAIN] In MRM -> change state to INTERRUPTED, do not forward.");
     main_.change_state(RouteState::INTERRUPTED);
     res->status.success = true;
     return;
   }
 
   // Forward the request if not in MRM.
+  RCLCPP_DEBUG(get_logger(), "[MAIN] FWD -> %s", cli_set_lanelet_route_->get_service_name());
   res->status = service_utils::sync_call(cli_set_lanelet_route_, req);
 }
 
@@ -225,6 +230,7 @@ void RouteSelector::on_set_waypoint_route_mrm(
   SetWaypointRoute::Request::SharedPtr req, SetWaypointRoute::Response::SharedPtr res)
 {
   req->uuid = uuid::generate_if_empty(req->uuid);
+  RCLCPP_DEBUG(get_logger(), "[MRM] FWD -> %s", cli_set_waypoint_route_->get_service_name());
   res->status = service_utils::sync_call(cli_set_waypoint_route_, req);
 
   if (res->status.success) {
@@ -239,6 +245,7 @@ void RouteSelector::on_set_lanelet_route_mrm(
   SetLaneletRoute::Request::SharedPtr req, SetLaneletRoute::Response::SharedPtr res)
 {
   req->uuid = uuid::generate_if_empty(req->uuid);
+  RCLCPP_DEBUG(get_logger(), "[MRM] FWD -> %s", cli_set_lanelet_route_->get_service_name());
   res->status = service_utils::sync_call(cli_set_lanelet_route_, req);
 
   if (res->status.success) {

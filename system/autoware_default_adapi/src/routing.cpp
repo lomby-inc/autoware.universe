@@ -76,6 +76,7 @@ void RoutingNode::change_stop_mode()
 {
   using OperationModeRequest = system_interface::ChangeOperationMode::Service::Request;
   if (is_auto_mode_) {
+    RCLCPP_DEBUG(get_logger(), "[routing] Request STOP (leaving autonomous).");
     const auto req = std::make_shared<OperationModeRequest>();
     req->mode = OperationModeRequest::STOP;
     cli_operation_mode_->async_send_request(req);
@@ -85,6 +86,10 @@ void RoutingNode::change_stop_mode()
 void RoutingNode::on_operation_mode(const OperationModeState::Message::ConstSharedPtr msg)
 {
   is_auto_mode_ = msg->mode == OperationModeState::Message::AUTONOMOUS;
+  RCLCPP_DEBUG_THROTTLE(
+    get_logger(), *get_clock(), 2000,
+    "[routing] on_operation_mode: is_auto_mode=%s",
+    (is_auto_mode_ ? "true" : "false"));
 }
 
 void RoutingNode::on_state(const State::Message::ConstSharedPtr msg)
@@ -92,19 +97,26 @@ void RoutingNode::on_state(const State::Message::ConstSharedPtr msg)
   // TODO(Takagi, Isamu): Add adapi initializing state.
   // Represent initializing state by not publishing the topic for now.
   if (msg->state == State::Message::INITIALIZING) {
+    RCLCPP_DEBUG_THROTTLE(get_logger(), *get_clock(), 2000,
+                         "[routing] on_state: INITIALIZING (not publishing)");
     return;
   }
 
   state_ = *msg;
   pub_state_->publish(conversion::convert_state(*msg));
+  RCLCPP_DEBUG_THROTTLE(
+    get_logger(), *get_clock(), 1000,
+    "[routing] on_state: planner_state=%u published AD API state", msg->state);
 
   // Change operation mode to stop when the vehicle arrives.
   if (msg->state == State::Message::ARRIVED) {
+    RCLCPP_INFO(get_logger(), "[routing] ARRIVED -> change_stop_mode()");
     change_stop_mode();
   }
 
   // TODO(Takagi, Isamu): Remove when the mission planner supports an empty route.
   if (msg->state == State::Message::UNSET) {
+    RCLCPP_DEBUG(get_logger(), "[routing] UNSET -> publish empty route");
     pub_route_->publish(conversion::create_empty_route(msg->stamp));
   }
 }
@@ -112,12 +124,16 @@ void RoutingNode::on_state(const State::Message::ConstSharedPtr msg)
 void RoutingNode::on_route(const Route::Message::ConstSharedPtr msg)
 {
   pub_route_->publish(conversion::convert_route(*msg));
+  RCLCPP_DEBUG_THROTTLE(
+    get_logger(), *get_clock(), 1000,
+    "[routing] on_route: forwarded planner route -> AD API route");
 }
 
 void RoutingNode::on_clear_route(
   const autoware_ad_api::routing::ClearRoute::Service::Request::SharedPtr req,
   const autoware_ad_api::routing::ClearRoute::Service::Response::SharedPtr res)
 {
+  RCLCPP_DEBUG(get_logger(), "[routing] RX ClearRoute");
   change_stop_mode();
   res->status = conversion::convert_call(cli_clear_route_, req);
 }
@@ -126,6 +142,7 @@ void RoutingNode::on_set_route_points(
   const autoware_ad_api::routing::SetRoutePoints::Service::Request::SharedPtr req,
   const autoware_ad_api::routing::SetRoutePoints::Service::Response::SharedPtr res)
 {
+  RCLCPP_DEBUG(get_logger(), "[routing] RX SetRoutePoints (state=%u)", state_.state);
   if (state_.state != State::Message::UNSET) {
     res->status = route_already_set<autoware_ad_api::routing::SetRoutePoints>();
     return;
@@ -137,6 +154,7 @@ void RoutingNode::on_set_route(
   const autoware_ad_api::routing::SetRoute::Service::Request::SharedPtr req,
   const autoware_ad_api::routing::SetRoute::Service::Response::SharedPtr res)
 {
+  RCLCPP_DEBUG(get_logger(), "[routing] RX SetRoute (state=%u)", state_.state);
   if (state_.state != State::Message::UNSET) {
     res->status = route_already_set<autoware_ad_api::routing::SetRoute>();
     return;
@@ -148,6 +166,7 @@ void RoutingNode::on_change_route_points(
   const autoware_ad_api::routing::SetRoutePoints::Service::Request::SharedPtr req,
   const autoware_ad_api::routing::SetRoutePoints::Service::Response::SharedPtr res)
 {
+  RCLCPP_DEBUG(get_logger(), "[routing] RX ChangeRoutePoints (state=%u)", state_.state);
   if (state_.state != State::Message::SET) {
     res->status = route_is_not_set<autoware_ad_api::routing::SetRoutePoints>();
     return;
@@ -159,6 +178,7 @@ void RoutingNode::on_change_route(
   const autoware_ad_api::routing::SetRoute::Service::Request::SharedPtr req,
   const autoware_ad_api::routing::SetRoute::Service::Response::SharedPtr res)
 {
+  RCLCPP_DEBUG(get_logger(), "[routing] RX ChangeRoute (state=%u)", state_.state);
   if (state_.state != State::Message::SET) {
     res->status = route_is_not_set<autoware_ad_api::routing::SetRoute>();
     return;
