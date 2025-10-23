@@ -40,7 +40,7 @@
     <!-- Nav2 Planning Pipeline -->
     <group if="$(eval &quot;'$(var global_planning)' == 'nav2_planning' and '$(var behavior_component)' == 'nav2_bt'&quot;)">
       <!-- <include file="$(find-pkg-share lomby_nav2_global_planner)/launch/nav2.launch.py"/> -->
-      <include file="$(find-pkg-share lomby_nav2_global_planner)/launch/goal_to_nav2_bridge.launch.py"/>
+      <!-- <include file="$(find-pkg-share lomby_nav2_global_planner)/launch/goal_to_nav2_bridge.launch.py"/> -->
       <include file="$(find-pkg-share lomby_nav2_global_planner)/launch/trajectory_relay.launch.py"/>
       <include file="$(find-pkg-share lomby_nav2_global_planner)/launch/turn_hazard_decider.launch.py"/>
     </group>
