@@ -3,7 +3,6 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-//
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
@@ -29,7 +28,13 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <tf2_ros/transform_listener.h>
 
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <limits>
 #include <memory>
+#include <optional>
+#include <string>
 
 namespace autoware::map_height_fitter
 {
@@ -67,6 +72,8 @@ struct MapHeightFitter::Impl
 MapHeightFitter::Impl::Impl(rclcpp::Node * node) : tf2_listener_(tf2_buffer_), node_(node)
 {
   fit_target_ = node->declare_parameter<std::string>("map_height_fitter.target");
+  RCLCPP_DEBUG(node_->get_logger(), "[MapHeightFitter] fit_target: %s", fit_target_.c_str());
+
   if (fit_target_ == "pointcloud_map") {
     const auto callback =
       [this](const std::shared_future<std::vector<rclcpp::Parameter>> & future) {
@@ -96,9 +103,10 @@ MapHeightFitter::Impl::Impl(rclcpp::Node * node) : tf2_listener_(tf2_buffer_), n
     params_pcd_map_loader_->get_parameters({enable_partial_load}, callback);
 
   } else if (fit_target_ == "vector_map") {
+    const auto vm_topic = node_->declare_parameter<std::string>("map_height_fitter.vector_map_topic", "/map/vector_map");
     const auto durable_qos = rclcpp::QoS(1).transient_local();
     sub_vector_map_ = node_->create_subscription<autoware_map_msgs::msg::LaneletMapBin>(
-      "~/vector_map", durable_qos,
+      vm_topic, durable_qos,
       std::bind(&MapHeightFitter::Impl::on_vector_map, this, std::placeholders::_1));
 
   } else {
@@ -129,23 +137,25 @@ bool MapHeightFitter::Impl::get_partial_point_cloud_map(const Point & point)
   const auto req = std::make_shared<autoware_map_msgs::srv::GetPartialPointCloudMap::Request>();
   req->area.center_x = static_cast<float>(point.x);
   req->area.center_y = static_cast<float>(point.y);
-  req->area.radius = 50;
+  req->area.radius = 50.0f;
+  RCLCPP_DEBUG(
+    logger, "[MapHeightFitter] Requesting partial PCD around (x=%.3f, y=%.3f), r=%.1f",
+    point.x, point.y, static_cast<double>(req->area.radius));
 
-  RCLCPP_DEBUG(logger, "Send request to map_loader");
   auto future = cli_pcd_map_->async_send_request(req);
   auto status = future.wait_for(std::chrono::seconds(1));
+  int loops = 0;
   while (status != std::future_status::ready) {
-    RCLCPP_DEBUG(logger, "waiting response");
-    if (!rclcpp::ok()) {
-      return false;
-    }
+    if (!rclcpp::ok()) return false;
+    ++loops;
+    RCLCPP_DEBUG(logger, "[MapHeightFitter] Waiting partial map response... (%d)", loops);
     status = future.wait_for(std::chrono::seconds(1));
   }
 
   const auto res = future.get();
   RCLCPP_DEBUG(
-    logger, "Loaded partial pcd map from map_loader (grid size: %lu)",
-    res->new_pointcloud_with_ids.size());
+    logger, "[MapHeightFitter] Partial map grids received: %lu",
+    static_cast<unsigned long>(res->new_pointcloud_with_ids.size()));
 
   sensor_msgs::msg::PointCloud2 pcd_msg;
   for (const auto & pcd_with_id : res->new_pointcloud_with_ids) {
@@ -170,106 +180,120 @@ void MapHeightFitter::Impl::on_vector_map(
   vector_map_ = std::make_shared<lanelet::LaneletMap>();
   lanelet::utils::conversion::fromBinMsg(*msg, vector_map_);
   map_frame_ = msg->header.frame_id;
+
+  const auto n_points = vector_map_ ? vector_map_->pointLayer.size() : 0UL;
+  const auto n_lines  = vector_map_ ? vector_map_->lineStringLayer.size() : 0UL;
+  const auto n_lanes  = vector_map_ ? vector_map_->laneletLayer.size() : 0UL;
+
+  RCLCPP_DEBUG(
+    node_->get_logger(),
+    "[MapHeightFitter] Received vector map: frame=%s points=%lu lines=%lu lanelets=%lu",
+    map_frame_.c_str(),
+    static_cast<unsigned long>(n_points),
+    static_cast<unsigned long>(n_lines),
+    static_cast<unsigned long>(n_lanes));
 }
 
 double MapHeightFitter::Impl::get_ground_height(const Point & point) const
 {
   const auto logger = node_->get_logger();
-
-  const double x = point.x;
-  const double y = point.y;
+  const double x = point.x, y = point.y;
 
   double height = INFINITY;
+
   if (fit_target_ == "pointcloud_map") {
-    // find distance d to closest point
+    if (!map_cloud_ || map_cloud_->empty()) return point.z;
+
     double min_dist2 = INFINITY;
     for (const auto & p : map_cloud_->points) {
-      const double dx = x - p.x;
-      const double dy = y - p.y;
-      const double sd = (dx * dx) + (dy * dy);
+      const double dx = x - p.x, dy = y - p.y;
+      const double sd = dx * dx + dy * dy;
       min_dist2 = std::min(min_dist2, sd);
     }
 
-    // find lowest height within radius (d+1.0)
-    const double radius2 = std::pow(std::sqrt(min_dist2) + 1.0, 2.0);
+    const double d = std::sqrt(min_dist2);
+    const double radius2 = (d + 1.0) * (d + 1.0);
 
     for (const auto & p : map_cloud_->points) {
-      const double dx = x - p.x;
-      const double dy = y - p.y;
-      const double sd = (dx * dx) + (dy * dy);
-      if (sd < radius2) {
-        height = std::min(height, static_cast<double>(p.z));
-      }
+      const double dx = x - p.x, dy = y - p.y;
+      const double sd = dx * dx + dy * dy;
+      if (sd < radius2) height = std::min(height, static_cast<double>(p.z));
+    }
+
+    if (std::isfinite(height)) {
+      RCLCPP_DEBUG(logger, "[MapHeightFitter] PCD: nearest_radius=%.3f z=%.3f", d + 1.0, height);
+    } else {
+      RCLCPP_DEBUG(logger, "[MapHeightFitter] PCD: no neighbor within radius; keep z=%.3f", point.z);
     }
   } else if (fit_target_ == "vector_map") {
-    const auto closest_points = vector_map_->pointLayer.nearest(lanelet::BasicPoint2d{x, y}, 1);
-    if (closest_points.empty()) {
-      RCLCPP_WARN_STREAM(logger, "failed to get closest lanelet");
+    if (!vector_map_) return point.z;
+    const auto nearest = vector_map_->pointLayer.nearest(lanelet::BasicPoint2d{x, y}, 1);
+    if (nearest.empty()) {
+      RCLCPP_DEBUG(logger, "[MapHeightFitter] VectorMap: no nearby points; keep z=%.3f", point.z);
       return point.z;
     }
-    height = closest_points.front().z();
+    height = nearest.front().z();
+    RCLCPP_DEBUG(
+      logger, "[MapHeightFitter] VectorMap: nearest point z=%.3f (x=%.3f y=%.3f)",
+      height, nearest.front().x(), nearest.front().y());
   }
 
   return std::isfinite(height) ? height : point.z;
 }
 
-std::optional<Point> MapHeightFitter::Impl::fit(const Point & position, const std::string & frame)
+std::optional<Point>
+MapHeightFitter::Impl::fit(const Point & position, const std::string & frame)
 {
   const auto logger = node_->get_logger();
-  RCLCPP_INFO_STREAM(logger, "fit_target: " << fit_target_ << ", frame: " << frame);
+  RCLCPP_DEBUG(
+    logger, "[MapHeightFitter] fit() called: pos=(%.3f, %.3f, %.3f) src_frame=%s",
+    position.x, position.y, position.z, frame.c_str());
+  RCLCPP_DEBUG(logger, "[MapHeightFitter] Current map_frame_='%s'", map_frame_.c_str());
 
-  Point point;
-  point.x = position.x;
-  point.y = position.y;
-  point.z = position.z;
+  Point point = position;
 
-  RCLCPP_DEBUG(logger, "original point: %.3f %.3f %.3f", point.x, point.y, point.z);
-
-  // prepare data
   if (fit_target_ == "pointcloud_map") {
-    if (cli_pcd_map_) {  // if cli_pcd_map_ is available, prepare pointcloud map by partial loading
+    if (cli_pcd_map_) {
       if (!get_partial_point_cloud_map(position)) {
-        RCLCPP_WARN_STREAM(logger, "failed to get partial point cloud map");
+        RCLCPP_DEBUG(logger, "[MapHeightFitter] Failed to get partial PCD");
         return std::nullopt;
       }
-    }  // otherwise, pointcloud map should be already prepared by on_pcd_map
+    }
     if (!map_cloud_) {
-      RCLCPP_WARN_STREAM(logger, "point cloud map is not ready");
+      RCLCPP_DEBUG(logger, "[MapHeightFitter] map_cloud_ is null");
       return std::nullopt;
     }
   } else if (fit_target_ == "vector_map") {
-    // vector_map_ should be already prepared by on_vector_map
     if (!vector_map_) {
-      RCLCPP_WARN_STREAM(logger, "vector map is not ready");
+      RCLCPP_DEBUG(logger, "[MapHeightFitter] vector_map_ not ready");
       return std::nullopt;
     }
   } else {
     throw std::runtime_error("invalid fit_target");
   }
 
-  // transform frame to map_frame_
   try {
     const auto stamped = tf2_buffer_.lookupTransform(frame, map_frame_, tf2::TimePointZero);
     tf2::doTransform(point, point, stamped);
-  } catch (tf2::TransformException & exception) {
-    RCLCPP_WARN_STREAM(logger, "failed to lookup transform: " << exception.what());
+  } catch (tf2::TransformException & ex) {
+    RCLCPP_DEBUG(logger, "[MapHeightFitter] TF %s->%s failed: %s",
+                frame.c_str(), map_frame_.c_str(), ex.what());
     return std::nullopt;
   }
 
-  // fit height on map_frame_
+  const double old_z = point.z;
   point.z = get_ground_height(point);
 
-  // transform map_frame_ to frame
   try {
     const auto stamped = tf2_buffer_.lookupTransform(map_frame_, frame, tf2::TimePointZero);
     tf2::doTransform(point, point, stamped);
-  } catch (tf2::TransformException & exception) {
-    RCLCPP_WARN_STREAM(logger, "failed to lookup transform: " << exception.what());
+  } catch (tf2::TransformException & ex) {
+    RCLCPP_DEBUG(logger, "[MapHeightFitter] TF %s->%s failed: %s",
+                map_frame_.c_str(), frame.c_str(), ex.what());
     return std::nullopt;
   }
 
-  RCLCPP_DEBUG(logger, "modified point: %.3f %.3f %.3f", point.x, point.y, point.z);
-
+  RCLCPP_DEBUG(logger, "[MapHeightFitter] Height fitted: z %.3f -> %.3f", old_z, point.z);
   return point;
 }
 
@@ -280,7 +304,8 @@ MapHeightFitter::MapHeightFitter(rclcpp::Node * node)
 
 MapHeightFitter::~MapHeightFitter() = default;
 
-std::optional<Point> MapHeightFitter::fit(const Point & position, const std::string & frame)
+std::optional<Point>
+MapHeightFitter::fit(const Point & position, const std::string & frame)
 {
   return impl_->fit(position, frame);
 }
