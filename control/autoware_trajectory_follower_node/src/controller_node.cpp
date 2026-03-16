@@ -25,6 +25,10 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <cmath>   // <-- added
+#include <tf2/LinearMath/Quaternion.h>   // <-- added
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>  // <-- added
+#include <rclcpp/rclcpp.hpp>
 
 namespace autoware::motion::control::trajectory_follower_node
 {
@@ -153,6 +157,58 @@ bool Controller::isTimeOut(
   return false;
 }
 
+void sanitizeTrajectory(autoware_planning_msgs::msg::Trajectory & traj)
+{
+  // ----- 1. Enforce geometric yaw from XY direction -----
+  for (size_t i = 0; i < traj.points.size() - 1; ++i) {
+    auto & p0 = traj.points[i];
+    auto & p1 = traj.points[i + 1];
+
+    const double dx = p1.pose.position.x - p0.pose.position.x;
+    const double dy = p1.pose.position.y - p0.pose.position.y;
+
+    if (std::hypot(dx, dy) < 1e-6) continue;
+
+    double yaw = std::atan2(dy, dx);
+
+    // If reversing, flip yaw 180 degrees
+    if (p0.longitudinal_velocity_mps < 0.0) {
+      yaw += M_PI;
+    }
+
+    tf2::Quaternion q;
+    q.setRPY(0.0, 0.0, yaw);
+    q.normalize();
+
+    p0.pose.orientation = tf2::toMsg(q);
+  }
+
+  // Copy last yaw from previous
+  traj.points.back().pose.orientation =
+    traj.points[traj.points.size() - 2].pose.orientation;
+
+  // ----- 2. Enforce quaternion continuity -----
+  for (size_t i = 1; i < traj.points.size(); ++i) {
+    auto & prev = traj.points[i - 1].pose.orientation;
+    auto & curr = traj.points[i].pose.orientation;
+
+    tf2::Quaternion q_prev, q_curr;
+    tf2::fromMsg(prev, q_prev);
+    tf2::fromMsg(curr, q_curr);
+
+    if (q_prev.dot(q_curr) < 0.0) {
+      q_curr = tf2::Quaternion(-q_curr.x(), -q_curr.y(), -q_curr.z(), -q_curr.w());
+      curr = tf2::toMsg(q_curr);
+    }
+  }
+
+  // Force flat Z
+  for (auto & p : traj.points) {
+    p.pose.position.z = traj.points.front().pose.position.z;
+  }
+
+}
+
 boost::optional<trajectory_follower::InputData> Controller::createInputData(rclcpp::Clock & clock)
 {
   if (!processData(clock)) {
@@ -161,6 +217,7 @@ boost::optional<trajectory_follower::InputData> Controller::createInputData(rclc
 
   trajectory_follower::InputData input_data;
   input_data.current_trajectory = *current_trajectory_ptr_;
+  sanitizeTrajectory(input_data.current_trajectory);
   input_data.current_odometry = *current_odometry_ptr_;
   input_data.current_steering = *current_steering_ptr_;
   input_data.current_accel = *current_accel_ptr_;

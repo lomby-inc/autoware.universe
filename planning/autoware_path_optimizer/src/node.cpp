@@ -244,13 +244,103 @@ void PathOptimizer::onPath(const Path::ConstSharedPtr path_ptr)
   if (!is_driving_forward) {
     RCLCPP_WARN_THROTTLE(
       get_logger(), *get_clock(), 5000,
-      "Backward path is NOT supported. Just converting path to trajectory");
+      "Backward path detected. Converting and sanitizing trajectory.");
 
-    const auto traj_points = trajectory_utils::convertToTrajectoryPoints(path_ptr->points);
+    auto traj_points =
+      trajectory_utils::convertToTrajectoryPoints(path_ptr->points);
+    if (!traj_points.empty()) {
+      const double base_z = traj_points.front().pose.position.z;
+      for (auto & p : traj_points) {
+        p.pose.position.z = base_z;
+      }
+    }
+
+    for (size_t i = 1; i + 1 < traj_points.size(); ++i) {
+      const auto & prev = traj_points.at(i - 1).pose.position;
+      auto & curr = traj_points.at(i).pose.position;
+      const auto & next = traj_points.at(i + 1).pose.position;
+
+      const double dx1 = curr.x - prev.x;
+      const double dy1 = curr.y - prev.y;
+
+      const double dx2 = next.x - curr.x;
+      const double dy2 = next.y - curr.y;
+
+      const double dot = dx1 * dx2 + dy1 * dy2;
+
+      if (dot < 0.0) {
+        traj_points.erase(traj_points.begin() + i);
+        --i;
+      }
+    }
+
+    constexpr double epsilon = 1e-6;
+
+    for (size_t i = 0; i + 1 < traj_points.size(); ++i) {
+      auto & p0 = traj_points.at(i);
+      auto & p1 = traj_points.at(i + 1);
+
+      const double dx = p1.pose.position.x - p0.pose.position.x;
+      const double dy = p1.pose.position.y - p0.pose.position.y;
+
+      const double segment_length = std::hypot(dx, dy);
+      if (segment_length < epsilon) {
+        continue;
+      }
+
+      double yaw = std::atan2(dy, dx);
+
+      // Reverse motion → flip heading
+      yaw += M_PI;
+
+      yaw = std::atan2(std::sin(yaw), std::cos(yaw));
+
+      tf2::Quaternion q;
+      q.setRPY(0.0, 0.0, yaw);
+      q.normalize();
+
+      auto current_q = tf2::toMsg(q);
+
+      // Quaternion continuity
+      if (i > 0) {
+        const auto & prev_q = traj_points.at(i - 1).pose.orientation;
+
+        const double dot =
+          prev_q.x * current_q.x +
+          prev_q.y * current_q.y +
+          prev_q.z * current_q.z +
+          prev_q.w * current_q.w;
+
+        if (dot < 0.0) {
+          current_q.x *= -1.0;
+          current_q.y *= -1.0;
+          current_q.z *= -1.0;
+          current_q.w *= -1.0;
+        }
+      }
+
+      p0.pose.orientation = current_q;
+
+      p0.longitudinal_velocity_mps =
+        -std::abs(p0.longitudinal_velocity_mps);
+    }
+
+
+    if (traj_points.size() >= 2) {
+      traj_points.back().pose.orientation =
+        traj_points.at(traj_points.size() - 2).pose.orientation;
+
+      traj_points.back().longitudinal_velocity_mps =
+        -std::abs(traj_points.back().longitudinal_velocity_mps);
+    }
+
     const auto output_traj_msg =
-      autoware::motion_utils::convertToTrajectory(traj_points, path_ptr->header);
+      autoware::motion_utils::convertToTrajectory(
+        traj_points, path_ptr->header);
+
     traj_pub_->publish(output_traj_msg);
-    published_time_publisher_->publish_if_subscribed(traj_pub_, output_traj_msg.header.stamp);
+    published_time_publisher_->publish_if_subscribed(
+      traj_pub_, output_traj_msg.header.stamp);
     return;
   }
 
