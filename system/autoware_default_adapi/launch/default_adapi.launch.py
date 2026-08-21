@@ -41,20 +41,8 @@ def get_default_config():
 
 def generate_launch_description():
     components = [
-        create_api_node("autoware_state", "AutowareStateNode"),
-        create_api_node("diagnostics", "DiagnosticsNode"),
-        create_api_node("fail_safe", "FailSafeNode"),
-        create_api_node("heartbeat", "HeartbeatNode"),
-        create_api_node("interface", "InterfaceNode"),
         create_api_node("localization", "LocalizationNode"),
-        create_api_node("motion", "MotionNode"),
-        create_api_node("operation_mode", "OperationModeNode"),
-        create_api_node("perception", "PerceptionNode"),
-        create_api_node("planning", "PlanningNode"),
-        create_api_node("routing", "RoutingNode"),
         create_api_node("vehicle", "VehicleNode"),
-        create_api_node("vehicle_info", "VehicleInfoNode"),
-        create_api_node("vehicle_door", "VehicleDoorNode"),
     ]
     container = ComposableNodeContainer(
         namespace="adapi",
@@ -64,11 +52,5 @@ def generate_launch_description():
         ros_arguments=["--log-level", "adapi.container:=WARN"],
         composable_node_descriptions=components,
     )
-    web_server = Node(
-        namespace="adapi",
-        package="autoware_default_adapi",
-        name="web_server",
-        executable="web_server.py",
-    )
     argument = DeclareLaunchArgument("config", default_value=get_default_config())
-    return launch.LaunchDescription([argument, container, web_server])
+    return launch.LaunchDescription([argument, container])

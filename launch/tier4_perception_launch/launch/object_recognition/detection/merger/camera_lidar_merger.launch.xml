@@ -66,7 +66,7 @@
 
   <let name="merger2/input/objects0" value="$(var merger1/output/objects)"/>
   <let name="merger2/input/objects1" value="$(var input/detection_by_tracker/objects)"/>
-  <let name="merger2/output/objects" value="objects_before_filter" if="$(var use_object_filter)"/>
+  <let name="merger2/output/objects" value="objects" if="$(var use_object_filter)"/>
   <let name="merger2/output/objects" value="$(var output/objects)" unless="$(var use_object_filter)"/>
 
   <let name="filter/input/objects" value="$(var merger2/output/objects)" if="$(var use_detection_by_tracker)"/>
