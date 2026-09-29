@@ -193,7 +193,7 @@
     <group unless="$(var use_empty_dynamic_object_publisher)">
       <push-ros-namespace namespace="object_recognition"/>
       <!-- Detection module -->
-      <group>
+      <!-- <group>
         <push-ros-namespace namespace="detection"/>
         <include file="$(find-pkg-share tier4_perception_launch)/launch/object_recognition/detection/detection.launch.xml">
           <arg name="mode" value="$(var mode)"/>
@@ -251,10 +251,10 @@
           <arg name="objects_filter_method" value="$(var objects_filter_method)"/>
           <arg name="use_roi_based_cluster" value="$(var use_roi_based_cluster)"/>
         </include>
-      </group>
+      </group> -->
 
       <!-- Tracking module -->
-      <group>
+      <!-- <group>
         <push-ros-namespace namespace="tracking"/>
         <include file="$(find-pkg-share tier4_perception_launch)/launch/object_recognition/tracking/tracking.launch.xml">
           <arg name="mode" value="$(var mode)"/>
@@ -270,15 +270,15 @@
           <arg name="use_radar_tracking_fusion" value="$(var use_radar_tracking_fusion)"/>
           <arg name="use_detection_by_tracker" value="$(var use_detection_by_tracker)"/>
         </include>
-      </group>
+      </group> -->
 
       <!-- Prediction module -->
-      <group>
+      <!-- <group>
         <push-ros-namespace namespace="prediction"/>
         <include file="$(find-pkg-share tier4_perception_launch)/launch/object_recognition/prediction/prediction.launch.xml">
           <arg name="use_vector_map" value="$(var use_vector_map)"/>
         </include>
-      </group>
+      </group> -->
     </group>
 
     <group if="$(var use_empty_dynamic_object_publisher)">
