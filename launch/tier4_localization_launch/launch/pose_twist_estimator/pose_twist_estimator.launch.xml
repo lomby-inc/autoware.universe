@@ -9,7 +9,7 @@
   <arg name="gnss_enabled" default="true" description="gnss availability for initial position estimation"/>
 
   <!-- split string with underscores -->
-  <let name="available_args" value="[\'ndt\',\'yabloc\',\'eagleye\',\'artag\',\'lidar-marker\']"/>
+  <let name="available_args" value="[\'ndt\',\'yabloc\',\'eagleye\',\'artag\',\'lidar-marker\',\'fastlio\']"/>
   <let name="split_function" value="list(set('$(var pose_source)'.split('_')).intersection($(var available_args)))"/>
   <let name="pose_sources" value="$(eval $(var split_function))"/>
   <let name="multi_localizer_mode" value="$(eval &quot;len($(var pose_sources))> 1&quot;)"/>
@@ -20,6 +20,7 @@
   <let name="use_artag_pose" value="$(eval &quot;'artag' in $(var pose_sources)&quot;)"/>
   <let name="use_lidar_marker_pose" value="$(eval &quot;'lidar-marker' in $(var pose_sources)&quot;)"/>
   <let name="use_eagleye_pose" value="$(eval &quot;'eagleye' in $(var pose_sources)&quot;)"/>
+  <let name="use_fastlio_pose" value="$(eval &quot;'fastlio' in $(var pose_sources)&quot;)"/>
   <let name="use_eagleye_twist" value="$(eval &quot;'eagleye' == '$(var twist_source)'&quot;)"/>
   <let name="use_gyro_odom_twist" value="$(eval &quot;'gyro_odom' == '$(var twist_source)'&quot;)"/>
 
@@ -56,6 +57,12 @@
     <include file="$(find-pkg-share tier4_localization_launch)/launch/pose_twist_estimator/yabloc.launch.xml">
       <arg name="src_image" value="$(var yabloc_src_image)"/>
     </include>
+  </group>
+
+  <!-- FAST-LIO + prior-map registration (as pose estimator). It serves NDT's align and trigger services, so
+       pose_initializer drives it as it would NDT. Not supported in multi_localizer_mode. -->
+  <group if="$(var use_fastlio_pose)">
+    <include file="$(find-pkg-share fast_lio_localization)/launch/fast_lio_localization.launch.xml"/>
   </group>
 
   <!-- Gyro Odometer Launch (as twist estimator) -->
@@ -123,7 +130,7 @@
     <include file="$(find-pkg-share autoware_pose_initializer)/launch/pose_initializer.launch.xml">
       <arg name="user_defined_initial_pose/enable" value="$(var user_defined_initial_pose/enable)"/>
       <arg name="user_defined_initial_pose/pose" value="$(var user_defined_initial_pose/pose)"/>
-      <arg name="ndt_enabled" value="$(var use_ndt_pose)"/>
+      <arg name="ndt_enabled" value="$(eval &quot;$(var use_ndt_pose) or $(var use_fastlio_pose)&quot;)"/>
       <arg name="yabloc_enabled" value="$(var use_yabloc_pose)"/>
       <arg name="gnss_enabled" value="$(var gnss_enabled)"/>
       <arg name="ekf_enabled" value="true"/>
