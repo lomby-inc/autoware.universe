@@ -60,9 +60,13 @@
   </group>
 
   <!-- FAST-LIO + prior-map registration (as pose estimator). It serves NDT's align and trigger services, so
-       pose_initializer drives it as it would NDT. Not supported in multi_localizer_mode. -->
+       pose_initializer drives it as it would NDT. Not supported in multi_localizer_mode.
+       use_autoware_pose_covariance_modifier switches on its own GNSS combination instead (pose_source_selector),
+       which adds GNSS poses by FAST-LIO's tracking health rather than by GNSS covariance alone. -->
   <group if="$(var use_fastlio_pose)">
-    <include file="$(find-pkg-share fast_lio_localization)/launch/fast_lio_localization.launch.xml"/>
+    <include file="$(find-pkg-share fast_lio_localization)/launch/fast_lio_localization.launch.xml">
+      <arg name="use_pose_source_selector" value="$(var use_autoware_pose_covariance_modifier)"/>
+    </include>
   </group>
 
   <!-- Gyro Odometer Launch (as twist estimator) -->
