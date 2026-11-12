@@ -63,6 +63,10 @@ public:
   CarInitialPoseTool();
   void onInitialize() override;
   [[nodiscard]] DummyObject createObjectMsg() const override;
+  [[nodiscard]] std::string getModelName() const override;
+
+private:
+  rviz_common::properties::EnumProperty * model_;
 };
 
 class BusInitialPoseTool : public InteractiveObjectTool

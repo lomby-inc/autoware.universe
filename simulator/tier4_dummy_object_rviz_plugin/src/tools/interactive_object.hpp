@@ -62,6 +62,7 @@
 #endif
 
 #include <geometry_msgs/msg/twist.hpp>
+#include <std_msgs/msg/string.hpp>
 #include <tier4_simulation_msgs/msg/dummy_object.hpp>
 
 #include <boost/optional.hpp>
@@ -76,6 +77,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace rviz_plugins
@@ -138,6 +140,7 @@ public:
   int processKeyEvent(QKeyEvent * event, rviz_common::RenderPanel * panel) override;
 
   [[nodiscard]] virtual DummyObject createObjectMsg() const = 0;
+  [[nodiscard]] virtual std::string getModelName() const { return ""; }
 
 protected Q_SLOTS:
   virtual void updateTopic();
@@ -145,6 +148,7 @@ protected Q_SLOTS:
 protected:  // NOLINT for Qt
   rclcpp::Clock::SharedPtr clock_;
   rclcpp::Publisher<DummyObject>::SharedPtr dummy_object_info_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr npc_model_pub_;
 
   rviz_default_plugins::tools::MoveTool move_tool_;
 
@@ -166,6 +170,7 @@ protected:  // NOLINT for Qt
 
 private:
   void publishObjectMsg(const std::array<uint8_t, 16> & uuid, const uint32_t action);
+  void publishNpcModel(const std::array<uint8_t, 16> & uuid);
   void onPoseSet(double x, double y, double theta) override;
 
   InteractiveObjectCollection objects_;

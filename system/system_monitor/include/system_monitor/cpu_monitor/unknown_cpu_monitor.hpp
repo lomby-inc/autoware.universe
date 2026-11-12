@@ -20,6 +20,8 @@
 #ifndef SYSTEM_MONITOR__CPU_MONITOR__UNKNOWN_CPU_MONITOR_HPP_
 #define SYSTEM_MONITOR__CPU_MONITOR__UNKNOWN_CPU_MONITOR_HPP_
 
+#include <rclcpp/rclcpp.hpp>
+
 #include "system_monitor/cpu_monitor/cpu_monitor_base.hpp"
 
 #include <string>

@@ -20,6 +20,8 @@
 #ifndef SYSTEM_MONITOR__NET_MONITOR__NET_MONITOR_HPP_
 #define SYSTEM_MONITOR__NET_MONITOR__NET_MONITOR_HPP_
 
+#include <rclcpp/rclcpp.hpp>
+
 #include "system_monitor/net_monitor/nl80211.hpp"
 #include "system_monitor/traffic_reader/traffic_reader_common.hpp"
 

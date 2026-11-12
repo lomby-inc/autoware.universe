@@ -20,6 +20,8 @@
 #ifndef SYSTEM_MONITOR__CPU_MONITOR__CPU_MONITOR_BASE_HPP_
 #define SYSTEM_MONITOR__CPU_MONITOR__CPU_MONITOR_BASE_HPP_
 
+#include <rclcpp/rclcpp.hpp>
+
 #include <diagnostic_updater/diagnostic_updater.hpp>
 
 #include <tier4_external_api_msgs/msg/cpu_status.hpp>

@@ -96,6 +96,14 @@ CarInitialPoseTool::CarInitialPoseTool()
     "Max velocity", 33.3, "Max velocity [m/s]", getPropertyContainer());
   min_velocity_ = new rviz_common::properties::FloatProperty(
     "Min velocity", -33.3, "Min velocity [m/s]", getPropertyContainer());
+  model_ = new rviz_common::properties::EnumProperty(
+    "Model", "Taxi", "NPC vehicle model published on /simulation/npc_model",
+    getPropertyContainer());
+  model_->addOption("Hatchback", 0);
+  model_->addOption("SmallCar", 1);
+  model_->addOption("Taxi", 2);
+  model_->addOption("Van", 3);
+  model_->addOption("Truck_2t", 4);
   std_dev_x_->setMin(0);
   std_dev_y_->setMin(0);
   std_dev_z_->setMin(0);
@@ -147,6 +155,13 @@ DummyObject CarInitialPoseTool::createObjectMsg() const
   std::generate(object.id.uuid.begin(), object.id.uuid.end(), bit_eng);
 
   return object;
+}
+
+std::string CarInitialPoseTool::getModelName() const
+{
+  static const char * names[] = {"Hatchback", "SmallCar", "Taxi", "Van", "Truck_2t"};
+  const int index = model_->getOptionInt();
+  return (index >= 0 && index < 5) ? names[index] : "Taxi";
 }
 
 BusInitialPoseTool::BusInitialPoseTool()

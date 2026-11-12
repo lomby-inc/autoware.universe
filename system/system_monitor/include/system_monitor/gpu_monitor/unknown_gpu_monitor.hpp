@@ -20,6 +20,8 @@
 #ifndef SYSTEM_MONITOR__GPU_MONITOR__UNKNOWN_GPU_MONITOR_HPP_
 #define SYSTEM_MONITOR__GPU_MONITOR__UNKNOWN_GPU_MONITOR_HPP_
 
+#include <rclcpp/rclcpp.hpp>
+
 #include "system_monitor/gpu_monitor/gpu_monitor_base.hpp"
 
 #include <string>

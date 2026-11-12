@@ -52,8 +52,10 @@
 #include <rviz_common/display_context.hpp>
 
 #include <algorithm>
+#include <iomanip>
 #include <memory>
 #include <random>
+#include <sstream>
 #include <string>
 
 namespace rviz_plugins
@@ -254,6 +256,8 @@ void InteractiveObjectTool::updateTopic()
   rclcpp::Node::SharedPtr raw_node = context_->getRosNodeAbstraction().lock()->get_raw_node();
   dummy_object_info_pub_ =
     raw_node->create_publisher<DummyObject>(topic_property_->getStdString(), 1);
+  npc_model_pub_ = raw_node->create_publisher<std_msgs::msg::String>(
+    "/simulation/npc_model", rclcpp::QoS(10));
   clock_ = raw_node->get_clock();
   move_tool_.initialize(context_);
   property_frame_->setFrameManager(context_->getFrameManager());
@@ -283,7 +287,27 @@ void InteractiveObjectTool::onPoseSet(double x, double y, double theta)
   output_msg.min_velocity = min_velocity_->getFloat();
   output_msg.action = DummyObject::ADD;
 
+  publishNpcModel(output_msg.id.uuid);
   dummy_object_info_pub_->publish(output_msg);
+}
+
+void InteractiveObjectTool::publishNpcModel(const std::array<uint8_t, 16> & uuid)
+{
+  const std::string model = getModelName();
+  if (model.empty() || !npc_model_pub_) {
+    return;
+  }
+
+  std::ostringstream os;
+  os << "{\"id\":\"";
+  for (const auto byte : uuid) {
+    os << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte);
+  }
+  os << "\",\"model\":\"" << model << "\"}";
+
+  std_msgs::msg::String msg;
+  msg.data = os.str();
+  npc_model_pub_->publish(msg);
 }
 
 void InteractiveObjectTool::publishObjectMsg(
@@ -308,6 +332,7 @@ void InteractiveObjectTool::publishObjectMsg(
   tf2::toMsg(object_tf.get(), output_msg.initial_state.pose_covariance.pose);
   output_msg.initial_state.twist_covariance.twist = object_twist.get();
 
+  publishNpcModel(uuid);
   dummy_object_info_pub_->publish(output_msg);
 }
 
